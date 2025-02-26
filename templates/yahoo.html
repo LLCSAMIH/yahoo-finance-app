@@ -81,7 +81,7 @@
 <body>
     <div class="container">
         <h1>Stock Data Lookup</h1>
-        <form action="/get_stock_data" method="POST">
+        <form action="/" method="POST">
             <div class="input-group">
                 <input type="text" name="symbol" placeholder="Enter Stock Ticker" required>
                 <button type="submit">Get Data</button>
@@ -89,20 +89,22 @@
         </form>
     </div>
 
-    
+    {% if stock_price %}
     <div class="container stock-info">
-        <h2>Stock Data for -</h2>
+        <h2>Stock Data</h2>
         <p><strong>Latest Stock Price:</strong> ${{ stock_price }}</p>
     </div>
+    {% endif %}
 
+    {% if financials %}
     <div class="container">
         <h3>Financial Data</h3>
         <table>
             <thead>
                 <tr>
                     <th>Metric</th>
-                    {% for col in financials.keys() %}
-                        <th>{{ col }}</th>
+                    {% for year in financials.values()|first.keys() %}
+                        <th>{{ year }}</th>
                     {% endfor %}
                 </tr>
             </thead>
@@ -111,13 +113,14 @@
                     <tr>
                         <td><strong>{{ metric }}</strong></td>
                         {% for value in values.values() %}
-                            <td>{{ value }}</td>
+                            <td>{{ value if value else "N/A" }}</td>
                         {% endfor %}
                     </tr>
                 {% endfor %}
             </tbody>
         </table>
     </div>
+    {% endif %}
     
 </body>
 </html>

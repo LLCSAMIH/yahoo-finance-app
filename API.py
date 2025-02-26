@@ -1,41 +1,29 @@
-from flask import Flask, request, render_template
+from flask import Flask, render_template, request
 import yfinance as yf
 
 app = Flask(__name__)
 
-# Function to get stock data
-def get_stock_data(symbol):
-    ticker = yf.Ticker(symbol)
-    data = ticker.history(period='1d')
-    financials = ticker.financials
-
-    if data.empty:
-        return None
-
-    return {
-        "symbol": symbol,
-        "stock_price": data['Close'][0],
-        "financials": financials.to_dict()
-    }
-
-# Home Route
-@app.route('/')
+@app.route("/", methods=["GET", "POST"])
 def home():
-    return render_template("yahoo.html")  # Flask expects this inside /templates/
+    stock_price = None
+    financials = {}
 
-# API Route
-@app.route('/get_stock_data', methods=['POST'])
-def stock_data():
-    symbol = request.form.get("symbol")
-    if not symbol:
-        return render_template("yahoo.html", error="Stock symbol is required")
-    
-    stock_info = get_stock_data(symbol)
-    if not stock_info:
-        return render_template("yahoo.html", error="Invalid stock symbol")
+    if request.method == "POST":
+        symbol = request.form.get("symbol")
+        if symbol:
+            stock = yf.Ticker(symbol)
+            
+            # Get stock price
+            stock_price = stock.history(period="1d")["Close"].iloc[-1] if not stock.history(period="1d").empty else "N/A"
+            
+            # Get financials
+            financial_data = stock.financials.to_dict() if stock.financials is not None else {}
 
-    return render_template("yahoo.html", stock_price=stock_info["stock_price"], symbol=symbol, financials=stock_info["financials"])
+            # Convert financial data to dictionary
+            for metric, values in financial_data.items():
+                financials[metric] = {str(year): val for year, val in values.items()}
 
-if __name__ == '__main__':
-    app.run(debug=True, port=5001)
+    return render_template("yahoo.html", stock_price=stock_price, financials=financials)
 
+if __name__ == "__main__":
+    app.run(debug=True)
