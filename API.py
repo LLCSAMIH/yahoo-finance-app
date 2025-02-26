@@ -37,4 +37,5 @@ def stock_data():
     return render_template("yahoo.html", stock_price=stock_info["stock_price"], symbol=symbol, financials=stock_info["financials"])
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    app.run(debug=True, port=5001)
+
