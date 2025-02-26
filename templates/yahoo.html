@@ -4,6 +4,8 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Stock Data and Financials</title>
+  <!-- Include Chart.js from CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <style>
     body {
       font-family: Arial, sans-serif;
@@ -25,18 +27,25 @@
       width: 90%;
       max-width: 600px;
       text-align: center;
+      margin-bottom: 20px;
     }
     .input-group {
       margin-bottom: 20px;
       display: flex;
       justify-content: center;
       gap: 10px;
+      flex-wrap: wrap;
     }
-    input[type="text"] {
+    input[type="text"],
+    select {
       padding: 10px;
       width: 60%;
       border-radius: 5px;
       border: 1px solid #ccc;
+    }
+    label {
+      margin: 0 10px;
+      font-size: 0.9em;
     }
     button {
       padding: 10px 15px;
@@ -80,6 +89,20 @@
       font-style: italic;
       margin-bottom: 10px;
     }
+    ul {
+      list-style-type: disc;
+      text-align: left;
+      padding-left: 20px;
+      margin: 0 auto;
+      max-width: 600px;
+    }
+    /* Chart container styling */
+    .chart-container {
+      width: 100%;
+      max-width: 600px;
+      margin: 0 auto 20px;
+      height: 300px;  /* Fixed height for the chart */
+    }
   </style>
 </head>
 <body>
@@ -88,6 +111,29 @@
     <form action="/" method="POST">
       <div class="input-group">
         <input type="text" name="symbol" placeholder="Enter Stock Ticker" required>
+        <!-- Dropdown for selecting time frame -->
+        <select name="time_frame">
+          <option value="1D" {% if time_frame == "1D" %}selected{% endif %}>1 Day</option>
+          <option value="5D" {% if time_frame == "5D" %}selected{% endif %}>5 Days</option>
+          <option value="1M" {% if time_frame == "1M" %}selected{% endif %}>1 Month</option>
+          <option value="6M" {% if time_frame == "6M" %}selected{% endif %}>6 Months</option>
+          <option value="1Y" {% if time_frame == "1Y" %}selected{% endif %}>1 Year</option>
+          <option value="5Y" {% if time_frame == "5Y" %}selected{% endif %}>5 Years</option>
+          <option value="Max" {% if time_frame == "Max" %}selected{% endif %}>Max</option>
+        </select>
+        <!-- Checkboxes for additional indicators -->
+        <label>
+          <input type="checkbox" name="rsi" {% if show_rsi %}checked{% endif %}>
+          RSI
+        </label>
+        <label>
+          <input type="checkbox" name="macd" {% if show_macd %}checked{% endif %}>
+          MACD
+        </label>
+        <label>
+          <input type="checkbox" name="volume" {% if show_volume %}checked{% endif %}>
+          Volume
+        </label>
         <button type="submit">Get Data</button>
       </div>
     </form>
@@ -95,8 +141,38 @@
 
   {% if stock_price %}
   <div class="container stock-info">
-    <h2>Stock Data</h2>
-    <p><strong>Latest Stock Price:</strong> {{ "$" ~ "{:,.2f}".format(stock_price) }}</p>
+    <h2>Stock Data{% if symbol %} ({{ symbol }}){% endif %}</h2>
+    <p id="latest-price"><strong>Latest Stock Price:</strong> {{ "$" ~ "{:,.2f}".format(stock_price) }}</p>
+  </div>
+  {% endif %}
+
+  <!-- Chart Section -->
+  {% if chart_labels and price_data %}
+  <div class="container chart-container">
+    <canvas id="stockChart"></canvas>
+  </div>
+  {% endif %}
+
+  {% if kpis %}
+  <div class="container">
+    <h3>Key Stock KPIs</h3>
+    <p class="note">Calculated based on data retrieved for the company:</p>
+    <ul>
+      {% for key, value in kpis.items() %}
+        <li>
+          <strong>{{ key }}:</strong>
+          {% if value is number %}
+            {% if key in ["Dividend Yield", "Revenue Growth", "Profit Margins"] %}
+              {{ "{:.2%}".format(value) }}
+            {% else %}
+              {{ "{:,.2f}".format(value) }}
+            {% endif %}
+          {% else %}
+            {{ value }}
+          {% endif %}
+        </li>
+      {% endfor %}
+    </ul>
   </div>
   {% endif %}
 
@@ -109,7 +185,11 @@
         <tr>
           <th>Year</th>
           {% for metric in financials.keys() %}
-            <th>{{ metric }}</th>
+            {% if loop.first %}
+              <th style="background-color: green; color: white;">{{ metric }}</th>
+            {% else %}
+              <th>{{ metric }}</th>
+            {% endif %}
           {% endfor %}
         </tr>
       </thead>
@@ -134,6 +214,189 @@
     </table>
   </div>
   {% endif %}
-  
+
+  {% if symbol %}
+  <script>
+    // Poll for real-time stock price updates every 5 seconds
+    const POLLING_INTERVAL = 5000; // milliseconds
+
+    async function fetchLatestPrice() {
+      try {
+        const response = await fetch(`/price/{{ symbol }}`);
+        if (response.ok) {
+          const data = await response.json();
+          if (data.price) {
+            const formattedPrice = "$" + Number(data.price).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+            document.getElementById("latest-price").innerHTML = "<strong>Latest Stock Price:</strong> " + formattedPrice;
+          }
+        } else {
+          console.error("Failed to fetch price", response.statusText);
+        }
+      } catch (error) {
+        console.error("Error fetching latest price:", error);
+      }
+    }
+    setInterval(fetchLatestPrice, POLLING_INTERVAL);
+  </script>
+  {% endif %}
+
+  {% if chart_labels and price_data %}
+  <script>
+    // Prepare the main price dataset
+    const priceDataset = {
+      label: 'Price',
+      data: {{ price_data|tojson }},
+      borderColor: 'rgba(0, 123, 255, 1)',
+      backgroundColor: 'rgba(0, 123, 255, 0.2)',
+      fill: true,
+      tension: 0.1,
+      yAxisID: 'yPrice',
+      type: 'line'
+    };
+
+    // Collect all datasets in an array
+    const datasets = [priceDataset];
+
+    // RSI
+    {% if show_rsi and rsi_data %}
+    datasets.push({
+      label: 'RSI',
+      data: {{ rsi_data|tojson }},
+      borderColor: 'orange',
+      backgroundColor: 'rgba(255,165,0,0.2)',
+      fill: false,
+      yAxisID: 'yRSI',
+      type: 'line'
+    });
+    {% endif %}
+
+    // MACD
+    {% if show_macd and macd_data and macd_signal_data %}
+    datasets.push({
+      label: 'MACD',
+      data: {{ macd_data|tojson }},
+      borderColor: 'purple',
+      backgroundColor: 'rgba(128,0,128,0.2)',
+      fill: false,
+      yAxisID: 'yMACD',
+      type: 'line'
+    });
+    datasets.push({
+      label: 'MACD Signal',
+      data: {{ macd_signal_data|tojson }},
+      borderColor: 'magenta',
+      backgroundColor: 'rgba(255,0,255,0.2)',
+      fill: false,
+      yAxisID: 'yMACD',
+      type: 'line'
+    });
+    {% endif %}
+
+    // Volume
+    {% if show_volume and volume_data and volume_colors %}
+    datasets.push({
+      label: 'Volume',
+      data: {{ volume_data|tojson }},
+      backgroundColor: {{ volume_colors|tojson }},
+      yAxisID: 'yVolume',
+      type: 'bar'
+    });
+    {% endif %}
+
+    // Dynamically compute y-axis range for price
+    const priceArray = {{ price_data|tojson }};
+    const currentPrice = Number({{ stock_price|default(0, true) }});
+    if (priceArray.length > 0) {
+      const dataMin = Math.min(...priceArray);
+      const dataMax = Math.max(...priceArray);
+      const margin = (dataMax - dataMin) * 0.1;
+      var yPriceMin = Math.min(dataMin, currentPrice) - margin;
+      var yPriceMax = Math.max(dataMax, currentPrice) + margin;
+    } else {
+      var yPriceMin = 0;
+      var yPriceMax = 1;
+    }
+
+    // Build the chart
+    const ctx = document.getElementById('stockChart').getContext('2d');
+    const stockChart = new Chart(ctx, {
+      data: {
+        labels: {{ chart_labels|tojson }},
+        datasets: datasets
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        scales: {
+          x: {
+            display: true,
+            title: {
+              display: true,
+              text: (function() {
+                const tf = "{{ time_frame }}";
+                if (tf === "1D" || tf === "5D") {
+                  return "Time";
+                } else if (tf === "1M" || tf === "6M") {
+                  return "Date";
+                } else {
+                  return "Month";
+                }
+              })()
+            }
+          },
+          yPrice: {
+            type: 'linear',
+            position: 'left',
+            display: true,
+            title: {
+              display: true,
+              text: 'Price ($)'
+            },
+            min: yPriceMin,
+            max: yPriceMax
+          },
+          {% if show_rsi %}
+          yRSI: {
+            type: 'linear',
+            position: 'right',
+            display: true,
+            grid: { drawOnChartArea: false },
+            title: {
+              display: true,
+              text: 'RSI'
+            },
+            min: 0,
+            max: 100
+          },
+          {% endif %}
+          {% if show_macd %}
+          yMACD: {
+            type: 'linear',
+            position: 'right',
+            display: true,
+            grid: { drawOnChartArea: false },
+            title: {
+              display: true,
+              text: 'MACD'
+            }
+          },
+          {% endif %}
+          {% if show_volume %}
+          yVolume: {
+            type: 'linear',
+            position: 'bottom',
+            display: true,
+            grid: { drawOnChartArea: false },
+            title: {
+              display: true,
+              text: 'Volume'
+            }
+          }
+          {% endif %}
+        }
+      }
+    });
+  </script>
+  {% endif %}
 </body>
 </html>
