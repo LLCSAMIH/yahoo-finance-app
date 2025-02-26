@@ -15,6 +15,7 @@ executing==2.2.0
 Flask==3.1.0
 fonttools==4.56.0
 frozendict==2.4.6
+gunicorn==23.0.0
 idna==3.10
 ipykernel==6.29.5
 ipython==8.32.0
