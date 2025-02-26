@@ -1,126 +1,139 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Stock Data and Financials</title>
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            background-color: #f4f4f9;
-            margin: 20px;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-        }
-        h1 {
-            text-align: center;
-            color: #333;
-        }
-        .container {
-            background: white;
-            padding: 20px;
-            border-radius: 10px;
-            box-shadow: 0px 0px 10px rgba(0, 0, 0, 0.1);
-            width: 90%;
-            max-width: 600px;
-            text-align: center;
-        }
-        .input-group {
-            margin-bottom: 20px;
-            display: flex;
-            justify-content: center;
-            gap: 10px;
-        }
-        input[type="text"] {
-            padding: 10px;
-            width: 60%;
-            border-radius: 5px;
-            border: 1px solid #ccc;
-        }
-        button {
-            padding: 10px 15px;
-            border: none;
-            background: #007BFF;
-            color: white;
-            border-radius: 5px;
-            cursor: pointer;
-            transition: background 0.3s;
-        }
-        button:hover {
-            background: #0056b3;
-        }
-        .stock-info {
-            margin-top: 20px;
-            padding: 15px;
-            background: #e3f2fd;
-            border-radius: 10px;
-            box-shadow: 0px 0px 10px rgba(0, 0, 0, 0.1);
-        }
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-top: 20px;
-            border-radius: 10px;
-            overflow: hidden;
-        }
-        th, td {
-            padding: 12px;
-            text-align: center;
-            border: 1px solid #ddd;
-        }
-        th {
-            background-color: #007BFF;
-            color: white;
-        }
-        tbody tr:nth-child(even) {
-            background-color: #f9f9f9;
-        }
-    </style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Stock Data and Financials</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background-color: #f4f4f9;
+      margin: 20px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+    h1, h3 {
+      text-align: center;
+      color: #333;
+    }
+    .container {
+      background: white;
+      padding: 20px;
+      border-radius: 10px;
+      box-shadow: 0px 0px 10px rgba(0, 0, 0, 0.1);
+      width: 90%;
+      max-width: 600px;
+      text-align: center;
+    }
+    .input-group {
+      margin-bottom: 20px;
+      display: flex;
+      justify-content: center;
+      gap: 10px;
+    }
+    input[type="text"] {
+      padding: 10px;
+      width: 60%;
+      border-radius: 5px;
+      border: 1px solid #ccc;
+    }
+    button {
+      padding: 10px 15px;
+      border: none;
+      background: #007BFF;
+      color: white;
+      border-radius: 5px;
+      cursor: pointer;
+      transition: background 0.3s;
+    }
+    button:hover {
+      background: #0056b3;
+    }
+    .stock-info {
+      margin-top: 20px;
+      padding: 15px;
+      background: #e3f2fd;
+      border-radius: 10px;
+      box-shadow: 0px 0px 10px rgba(0, 0, 0, 0.1);
+    }
+    table {
+      display: inline-block;
+      border-collapse: collapse;
+      margin: 20px auto;
+      border-radius: 10px;
+      overflow: hidden;
+    }
+    th, td {
+      padding: 12px;
+      text-align: center;
+      border: 1px solid #ddd;
+    }
+    th {
+      background-color: #007BFF;
+      color: white;
+    }
+    tbody tr:nth-child(even) {
+      background-color: #f9f9f9;
+    }
+    .note {
+      font-style: italic;
+      margin-bottom: 10px;
+    }
+  </style>
 </head>
 <body>
-    <div class="container">
-        <h1>Stock Data Lookup</h1>
-        <form action="/" method="POST">
-            <div class="input-group">
-                <input type="text" name="symbol" placeholder="Enter Stock Ticker" required>
-                <button type="submit">Get Data</button>
-            </div>
-        </form>
-    </div>
+  <div class="container">
+    <h1>Stock Data Lookup</h1>
+    <form action="/" method="POST">
+      <div class="input-group">
+        <input type="text" name="symbol" placeholder="Enter Stock Ticker" required>
+        <button type="submit">Get Data</button>
+      </div>
+    </form>
+  </div>
 
-    {% if stock_price %}
-    <div class="container stock-info">
-        <h2>Stock Data</h2>
-        <p><strong>Latest Stock Price:</strong> ${{ stock_price }}</p>
-    </div>
-    {% endif %}
+  {% if stock_price %}
+  <div class="container stock-info">
+    <h2>Stock Data</h2>
+    <p><strong>Latest Stock Price:</strong> {{ "$" ~ "{:,.2f}".format(stock_price) }}</p>
+  </div>
+  {% endif %}
 
-    {% if financials %}
-    <div class="container">
-        <h3>Financial Data</h3>
-        <table>
-            <thead>
-                <tr>
-                    <th>Metric</th>
-                    {% for year in financials.values()|first.keys() %}
-                        <th>{{ year }}</th>
-                    {% endfor %}
-                </tr>
-            </thead>
-            <tbody>
-                {% for metric, values in financials.items() %}
-                    <tr>
-                        <td><strong>{{ metric }}</strong></td>
-                        {% for value in values.values() %}
-                            <td>{{ value if value else "N/A" }}</td>
-                        {% endfor %}
-                    </tr>
-                {% endfor %}
-            </tbody>
-        </table>
-    </div>
-    {% endif %}
-    
+  {% if financials %}
+  <div class="container">
+    <h3>Financial Data</h3>
+    <p class="note">All values are shown in billions.</p>
+    <table>
+      <thead>
+        <tr>
+          <th>Year</th>
+          {% for metric in financials.keys() %}
+            <th>{{ metric }}</th>
+          {% endfor %}
+        </tr>
+      </thead>
+      <tbody>
+        {% set first_metric = financials.values()|list|first %}
+        {% for year in first_metric.keys() %}
+          <tr>
+            <td>{{ year }}</td>
+            {% for metric in financials.keys() %}
+              <td>
+                {% set cell = financials[metric][year] %}
+                {% if cell is number %}
+                  {{ "$" ~ "{:,.2f}".format(cell / 1000000000) }}
+                {% else %}
+                  N/A
+                {% endif %}
+              </td>
+            {% endfor %}
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% endif %}
+  
 </body>
 </html>
