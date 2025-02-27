@@ -169,7 +169,6 @@
       .bottom-section .container {
         flex: 1 1 100%;
         max-width: 600px;
-        height: auto;
       }
     }
   </style>
@@ -216,7 +215,6 @@
       <canvas id="stockChart"></canvas>
     </div>
     {% endif %}
-
     {% if kpis %}
     <div class="kpi-container">
       <h3>Key Stock KPIs</h3>
@@ -241,7 +239,7 @@
     {% endif %}
   </div>
 
-  <!-- Bottom Section: Financial Data on left, News on right -->
+  <!-- Bottom Section: Financial Data on left, Latest News on right -->
   <div class="bottom-section">
     {% if financials %}
     <div class="container">
@@ -252,11 +250,11 @@
           <tr>
             <th>Year</th>
             {% for metric in financials.keys() %}
-            {% if loop.first %}
+              {% if loop.first %}
               <th style="background-color: green; color: white;">{{ metric }}</th>
-            {% else %}
+              {% else %}
               <th>{{ metric }}</th>
-            {% endif %}
+              {% endif %}
             {% endfor %}
           </tr>
         </thead>
@@ -281,7 +279,6 @@
       </table>
     </div>
     {% endif %}
-
     {% if news_feed %}
     <div class="container">
       <h3>Latest News</h3>
@@ -298,11 +295,16 @@
     {% endif %}
   </div>
 
+  <!-- New Container for Binance API Data -->
+  <div class="container">
+    <h3>Binance API Data</h3>
+    <p id="binance-data">Binance API data will be displayed here.</p>
+  </div>
+
   {% if symbol %}
   <script>
     // Poll for real-time stock price updates every 5 seconds
     const POLLING_INTERVAL = 5000; // ms
-
     async function fetchLatestPrice() {
       try {
         const response = await fetch(`/price/{{ symbol }}`);
@@ -313,8 +315,7 @@
               minimumFractionDigits: 2,
               maximumFractionDigits: 2
             });
-            document.getElementById("latest-price").innerHTML =
-              "<strong>Latest Stock Price:</strong> " + formattedPrice;
+            document.getElementById("latest-price").innerHTML = "<strong>Latest Stock Price:</strong> " + formattedPrice;
           }
         } else {
           console.error("Failed to fetch price", response.statusText);
@@ -340,11 +341,9 @@
       yAxisID: 'yPrice',
       type: 'line'
     };
-
     // Collect datasets
     const datasets = [priceDataset];
-
-    // RSI
+    // RSI dataset
     {% if show_rsi and rsi_data %}
     datasets.push({
       label: 'RSI',
@@ -356,8 +355,7 @@
       type: 'line'
     });
     {% endif %}
-
-    // MACD
+    // MACD dataset
     {% if show_macd and macd_data and macd_signal_data %}
     datasets.push({
       label: 'MACD',
@@ -378,8 +376,7 @@
       type: 'line'
     });
     {% endif %}
-
-    // Volume
+    // Volume dataset
     {% if show_volume and volume_data and volume_colors %}
     datasets.push({
       label: 'Volume',
@@ -389,12 +386,10 @@
       type: 'bar'
     });
     {% endif %}
-
-    // Dynamically compute y-axis range for price
+    // Compute y-axis range for price
     const priceArray = {{ price_data|tojson }};
     const currentPrice = Number({{ stock_price|default(0, true) }});
     let yPriceMin = 0, yPriceMax = 1;
-
     if (priceArray.length > 0) {
       const dataMin = Math.min(...priceArray);
       const dataMax = Math.max(...priceArray);
@@ -402,7 +397,6 @@
       yPriceMin = Math.min(dataMin, currentPrice) - margin;
       yPriceMax = Math.max(dataMax, currentPrice) + margin;
     }
-
     const ctx = document.getElementById('stockChart').getContext('2d');
     const stockChart = new Chart(ctx, {
       data: {
