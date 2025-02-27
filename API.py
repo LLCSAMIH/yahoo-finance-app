@@ -2,6 +2,11 @@ from flask import Flask, render_template, request, jsonify
 import yfinance as yf
 import pandas as pd
 import numpy as np
+import requests
+from datetime import datetime, timedelta
+
+# Finhub API key
+FINHUB_API_KEY = "cuvqis9r01qub8tv29ggcuvqis9r01qub8tv29h0"
 
 app = Flask(__name__)
 
@@ -24,6 +29,22 @@ def compute_macd(series, fast=12, slow=26, signal=9):
     signal_line = macd_line.ewm(span=signal, adjust=False).mean()
     return macd_line, signal_line
 
+def get_news(symbol):
+    # Get news for the last day
+    today = datetime.now().date()
+    from_date = today - timedelta(days=1)
+    url = f"https://finnhub.io/api/v1/company-news?symbol={symbol}&from={from_date}&to={today}&token={FINHUB_API_KEY}"
+    response = requests.get(url)
+    if response.status_code == 200:
+        return response.json()
+    else:
+        return []
+
+# Custom Jinja filter to format Unix timestamps
+@app.template_filter('datetimeformat')
+def datetimeformat_filter(timestamp):
+    return datetime.fromtimestamp(timestamp).strftime('%b %d, %Y %H:%M')
+
 @app.route("/", methods=["GET", "POST"])
 def home():
     stock_price = None
@@ -45,6 +66,7 @@ def home():
     show_rsi = False
     show_macd = False
     show_volume = False
+    news_feed = []  # News feed list
 
     if request.method == "POST":
         symbol = request.form.get("symbol", "").strip().upper()
@@ -70,7 +92,8 @@ def home():
                 macd_data=macd_data, 
                 macd_signal_data=macd_signal_data,
                 volume_data=volume_data, 
-                volume_colors=volume_colors
+                volume_colors=volume_colors,
+                news_feed=news_feed
             )
         try:
             stock = yf.Ticker(symbol)
@@ -82,9 +105,18 @@ def home():
             else:
                 stock_price = "N/A"
 
-            # Financials
+            # Financials: Filter to only include the latest three years.
             df = stock.financials
             if df is not None and not df.empty:
+                try:
+                    # Force columns to datetime, coercing errors
+                    df.columns = pd.to_datetime(df.columns, errors='coerce')
+                    current_year = datetime.now().year
+                    # Filter: only include columns with year >= (current_year - 2)
+                    allowed_cols = [col for col in df.columns if col is not pd.NaT and col.year >= current_year - 2]
+                    df = df[allowed_cols]
+                except Exception as e:
+                    print(f"Error filtering financials: {e}")
                 financials = df.to_dict()
             else:
                 financials = {}
@@ -130,11 +162,11 @@ def home():
                 period = "1mo"
                 interval = "1d"
 
-            # For longer time frames (1Y and greater), use daily data to resample to monthly
+            # For longer time frames (1Y, 5Y, Max), restrict to the latest 3 years.
             if time_frame in ["1Y", "5Y", "Max"]:
-                daily_hist = stock.history(period=period, interval="1d")
+                three_years_ago = datetime.now() - pd.DateOffset(years=3)
+                daily_hist = stock.history(start=three_years_ago, interval="1d")
                 if not daily_hist.empty:
-                    # Resample daily price to monthly (last available price)
                     price_monthly = daily_hist["Close"].resample("M").last()
                     price_data = price_monthly.tolist()
                     chart_labels = list(price_monthly.index.strftime("%b %Y"))
@@ -145,7 +177,6 @@ def home():
                         rsi_data = rsi_monthly["RSI"].tolist()
                     if show_macd:
                         macd_series, signal_series = compute_macd(daily_hist["Close"])
-                        # Resample MACD values to monthly using the last value in each month
                         macd_monthly = pd.DataFrame({"MACD": macd_series, "Signal": signal_series}).resample("M").last()
                         macd_data = macd_monthly["MACD"].tolist()
                         macd_signal_data = macd_monthly["Signal"].tolist()
@@ -153,8 +184,6 @@ def home():
                         volume_monthly = daily_hist["Volume"].resample("M").last()
                         volume_data = volume_monthly.tolist()
                         volume_colors = []
-                        # For volume colors, determine based on daily data within each month,
-                        # here we simply use the last day's comparison.
                         for date, row in daily_hist.groupby(pd.Grouper(freq="M")).last().iterrows():
                             if row["Close"] >= row["Open"]:
                                 volume_colors.append("green")
@@ -164,7 +193,6 @@ def home():
                     chart_labels = []
                     price_data = []
             else:
-                # For shorter time frames, use chart_hist directly.
                 chart_hist = stock.history(period=period, interval=interval)
                 if not chart_hist.empty:
                     if time_frame == "1D":
@@ -187,6 +215,7 @@ def home():
                     if show_volume:
                         volume_series = chart_hist["Volume"].tolist()
                         volume_data = volume_series
+                        volume_colors = []
                         for idx, row in chart_hist.iterrows():
                             if row["Close"] >= row["Open"]:
                                 volume_colors.append("green")
@@ -195,6 +224,9 @@ def home():
                 else:
                     chart_labels = []
                     price_data = []
+            
+            # Fetch live news feed from Finhub
+            news_feed = get_news(symbol)
         except Exception as e:
             print(f"Error fetching data: {e}")
             stock_price = "Error fetching stock data"
@@ -207,6 +239,7 @@ def home():
             macd_signal_data = []
             volume_data = []
             volume_colors = []
+            news_feed = []
 
     return render_template(
         "yahoo.html",
@@ -224,7 +257,8 @@ def home():
         macd_data=macd_data,
         macd_signal_data=macd_signal_data,
         volume_data=volume_data,
-        volume_colors=volume_colors
+        volume_colors=volume_colors,
+        news_feed=news_feed
     )
 
 @app.route("/price/<symbol>")
